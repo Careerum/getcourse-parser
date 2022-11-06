@@ -111,7 +111,7 @@ API:
     ```      
 - Работа с пользователями
   - Метод Users возвращает список ID пользователей по указанному фильтру
-        * filter - словарь в формате uc\[rule_string\] запроса https://school.dreamcatchme.ru/pl/user/user/index?uc\[rule_string\]=\{...\}
+        * filter - словарь в формате uc\[rule_string\] запроса `https://school.dreamcatchme.ru/pl/user/user/index?uc\[rule_string]={...}`
     ```python
     gc.Users(
       filter={
