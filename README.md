@@ -18,3 +18,13 @@ API:
     from getcourse import *
     gc = GetCourse(url="https://school.careerum.ru", username='is@careerum.com', password='S3cr37')
     ```     
+- Работа с задачами
+    - Метод MissionTasks возвращает список задач в указанном процессе
+      * processId - ID процесса
+      ```
+      print(gc.MissionTasks(processId=12345))
+      [
+        {'id': '2216872626', 'client': ('64348545', 'Наталия Маньковская'), 'subject': ('user', '64348545'), 'status': 'Отложена'},
+        {'id': '2217509003', 'client': ('45953922', 'Мария Хабахпашева'), 'subject': ('user', '45953922'), 'status': 'Отложена'}
+      ]
+      ```
