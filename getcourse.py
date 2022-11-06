@@ -29,7 +29,8 @@ class GetCourse:
             self._session.cookies = requests.cookies.RequestsCookieJar()
             self._session.cookies.set("PHPSESSID_SUB", cookie)
             r = self._session.get(self._url+'/user/my/profile')
-            userinfo = BeautifulSoup(r.text, 'html5lib').find('div', class_='row')
+            userinfo = BeautifulSoup(
+                r.text, 'html5lib').find('div', class_='row')
             if userinfo:
                 self._username = userinfo.get_text().strip().split()[1]
             else:
@@ -51,10 +52,10 @@ class GetCourse:
                 headers={'Content-Type': 'application/x-www-form-urlencoded'}
             )
             try:
-                self._username=json.loads(r.text)["email"]
-            except (ValueError,KeyError) as e:
-                raise Exception("Ошибка инициализации: неверная комбинация логина и пароля")
-            
+                self._username = json.loads(r.text)["email"]
+            except (ValueError, KeyError) as e:
+                raise Exception(
+                    "Ошибка инициализации: неверная комбинация логина и пароля")
 
     def __repr__(self):
         return f'GetCourse(username="{self._username}", cookie="{self._session.cookies["PHPSESSID_SUB"]}")'
@@ -62,14 +63,14 @@ class GetCourse:
     def MissionTasks(self, processId, page=1, bar=None) -> List[int]:
         """
         Метод возвращает список задач в указанном процесса
-        * mission - ID процесса
+        * processId - ID процесса
         """
         url = f'{self._url}/pl/tasks/mission/tasks?id={processId}&page={page}'
         r = self._session.get(url)
         response = BeautifulSoup(r.text, 'html5lib')
-        summary=re.search(
+        summary = re.search(
             r'Показано (\d+)-(\d+) из (\d+)  всего',
-            response.find('div', class_='summary').text.replace('\xa0','')
+            response.find('div', class_='summary').text.replace('\xa0', '')
         )
         if not summary:
             raise Exception(
@@ -207,24 +208,28 @@ class GetCourse:
             r'<label\s*>\s*<input [^>]*type=\"checkbox\" name=\"auto_prolongate_enabled\"\s*(checked)?>\s*Продлевать автоматически\s*</label>', r.text).group(1) == "checked"
         return {"title": title, "status": status, "prolong": prolong}
 
-    def missionTask(self, missionTask):
+    def missionTask(self, taskId):
         """
         Метод возвращает информацию о задаче
-        * missionTask - ID задачи
+        * taskId - ID задачи
         """
-        url = f'{self._url}/pl/tasks/task/task-scripts?id={missionTask}'
-        r = self._session.get(url, cookies=self._cookies)
+        url = f'{self._url}/pl/tasks/task/task-scripts?id={taskId}'
+        r = self._session.get(url)
         reply = json.loads(r.text)
-        matches = list(re.finditer(
-            #            r'<tr class=\"task-script-row \" data-id=\"(\d+)\">',
-            r'<tr class=\"task-script-row \" data-id=\"(\d+)\">\s*<td class=\"small\" width=\"30\">(\d+)</td>\s*<td class=\"small\" width=\"50\">([^<]*)</td>\s*<td class=\"small\" width=\"50\">([^<]*)</td>\s*<td class=\"small\"\s*>\s*(.*?)\t{5}\s*([^<]*?)\s*\(idS: (\d+)\)\s*</td>\s*<td width=\"200\">\s*<span\s+class=\"small\"\s*>\s*([^<]*?)\s*</span>\s*(?:<span\s+class=\"small\" >)?\s*(?:<span class=\"text-muted\" style=\"margin-left: 5px;\">)?\s*(.*?)(?:</span>\s*)*</td>\s*<td class=\"small\" width=\"100\">\s*(.*?)\s*</td>\s*</tr>',
-            reply["data"]["html"],
-            flags=re.DOTALL))
+        html = BeautifulSoup(reply["data"]["html"], 'html5lib')
+        steps = html.find_all('tr', class_="task-script-row")
+        # matches = list(re.finditer(
+        #     #            r'<tr class=\"task-script-row \" data-id=\"(\d+)\">',
+        #     r'<tr class=\"task-script-row \" data-id=\"(\d+)\">\s*<td class=\"small\" width=\"30\">(\d+)</td>\s*<td class=\"small\" width=\"50\">([^<]*)</td>\s*<td class=\"small\" width=\"50\">([^<]*)</td>\s*<td class=\"small\"\s*>\s*(.*?)\t{5}\s*([^<]*?)\s*\(idS: (\d+)\)\s*</td>\s*<td width=\"200\">\s*<span\s+class=\"small\"\s*>\s*([^<]*?)\s*</span>\s*(?:<span\s+class=\"small\" >)?\s*(?:<span class=\"text-muted\" style=\"margin-left: 5px;\">)?\s*(.*?)(?:</span>\s*)*</td>\s*<td class=\"small\" width=\"100\">\s*(.*?)\s*</td>\s*</tr>',
+        #     reply["data"]["html"],
+        #     flags=re.DOTALL))
+
         cal = {"Янв": 1, "Фев": 2, "Мар": 3, "Апр": 4, "Май": 5, "Июн": 6,
                "Июл": 7, "Авг": 8, "Сен": 9, "Окт": 10, "Ноя": 11, "Дек": 12}
         result = []
-        steps = [match.groups() for match in matches]
+        #steps = [match.groups() for match in matches]
         for step in steps:
+            tds = step.find_all('td')
             """
             try:
                 t1=datetime(int(step[2][10:14]),cal[step[2][6:9]],int(step[2][3:5]))
@@ -234,19 +239,25 @@ class GetCourse:
                 t2=datetime(int(step[3][10:14]),cal[step[3][6:9]],int(step[3][3:5]))
             except:
                 t2=datetime(datetime.now().year,cal[step[3][6:9]],int(step[3][3:5]),int(step[3][10:12]),int(step[3][13:15]))
-            # бывают также "только что", "2 минуты назад", и бог весть что еще
+            # бывают также "только что", "2 минуты назад", "сегодня ХХ:ХХ" и бог весть что еще
             """
+            stepdata = tds[3].text.strip().split('\n')
+            result_element=tds[4].find('span', class_="text-muted")
             result.append({
-                "stepId": int(step[0]),
-                "order": int(step[1]),
-                # "startTime":t1,
-                # "finishTime":t2,
-                "stepAction": step[4],
-                "stepTitle": step[5],
-                "stepTemplateId": int(step[6]),
-                "resultAction": step[7],
-                "resultTitle": step[8],
-                "who": step[9],
+                "stepId": int(step['data-id']),
+                "order": int(tds[0].text),  # №
+                # "startTime":t1, # Поставлено
+                # "finishTime":t2, # Выполнено
+                # Название/Действие
+                "stepAction": stepdata[0].split('\t\t\t\t\t')[0],
+                # Название/Текст
+                "stepTitle":  stepdata[0].split('\t\t\t\t\t')[1],
+                # Название/ID
+                "stepTemplateId": int(stepdata[1].strip()[6:-1]),
+                "resultSummary": tds[4].span.text.strip(),  # Результат/Итог
+                "resultData": " ".join(result_element.text.split()) if result_element else None,  # Результат/Вывод
+                "who": tds[5].text.strip(),  # Кто
+                "subprocess": tds[6].text.strip(),  # Подпроцесс
             })
         return sorted(result, key=lambda x: x["order"])
 
