@@ -8,6 +8,7 @@ from typing import List, Dict, Union, Tuple, Any
 import click
 import urllib.parse
 from bs4 import BeautifulSoup
+from collections.abc import Iterable
 
 
 class GetCourse:
@@ -101,7 +102,8 @@ class GetCourse:
         if type(filter) != dict:
             raise Exception("Filter must be a dict")
         url = f'{self._url}/pl/user/user/index?uc[rule_string]={json.dumps(filter)}&page={page}'
-        r = self._session.get(url, cookies=self._cookies)
+        r = self._session.get(url)
+        html = BeautifulSoup(r.text, 'html5lib')
         summary = re.search(
             r"<div class=\"summary\">Показано ([0-9 ]+)-([0-9 ]+) из ([0-9 ]+)  всего.\s+</div>", r.text)
         if not summary:
@@ -120,54 +122,42 @@ class GetCourse:
     # StreamDict = Dict[StreamType,StreamDict] -- mypy doesn't support recursive typing
     StreamDict = Dict[StreamType, Any]
 
-    def Streams(self, stream: IntStr = None, recursive: bool = True) -> Union[List[StreamType], StreamDict]:
+    def Streams(self, stream: IntStr = None) -> Union[List[StreamType], StreamDict]:
         """
-        Метод возвращает содержимое указанного курса (stream)
-        * stream - ID родительского stream, по умолчанию None (т.е. глобальный поиск)
-        * recursive - указывает, что возвращать
-            - True: курсы, являющиеся рекурсивно вложенными в указанный stream (по умолчанию), в формате словаря
-                - Ключ: кортеж из ID курса и его имени
-                - Значение: словарь со вложенными в него курсами в том же формате
-            - False: список кортежей из ID курсов и их названий, являющиеся вложенными в указанный stream
+        Метод возвращает возвращает вложенные курсы для указанного курса (stream)
+        * stream - ID курса, по умолчанию None (т.е. глобальный поиск)
         """
-        url = f'{self._url}/teach/control/stream'
-        if stream:
-            url += f'/view/id/{stream}'
-        r = self._session.get(url, cookies=self._cookies)
-        try:
-            title = re.search(r"<h1>(.*)</h1>", r.text).group(1)
-        except:
-            title = None
-        found_streams = set(re.findall(
-            r"<a href='/teach/control/stream/view/id/(\d*)'>\s*<span class=\"stream-title\">(.*?)</span>", r.text))
-        if recursive:
-            return {(stream, title): [self.Streams(s[0]) for s in found_streams]}
-        else:
-            return found_streams
+        url = f'{self._url}/teach/control/stream/tree'
+        r = self._session.get(url)
+        html = BeautifulSoup(r.text, 'html5lib')
 
-    def Lessons(self, stream=None) -> List[IntStr]:
+        def courses(bs):
+            # routine for iterating tree, bs - beautifulsoup object
+            if isinstance(bs, Iterable):
+                a = [{
+                    "id": course['data-id'],
+                    "title": course.a.text,
+                    "children": courses(course.ol)
+                } for course in bs.find_all('li', {'class': 'dd-item'}, recursive=False)]
+                return a
+            else:
+                return None
+        root = html.find(lambda tag: tag.name == 'li' and tag.get(
+            "data-id") == str(stream)).find('ol') if stream else html.find('ol', class_='level-0')
+        return courses(root)
+
+    def Lessons(self, stream) -> List[IntStr]:
         """
         Метод возвращает список ID уроков указанного курса (stream)
-        * stream - ID родительского stream, по умолчанию None (т.е. возвращаются вообще все уроки всех курсов)
+        * stream - ID курса)
         """
-        url = f'{self._url}/teach/control/stream'
-        if stream:
-            url += f'/view/id/{stream}'
-        r = self._session.get(url, cookies=self._cookies)
-        lessons = []
-        found_streams = re.findall(
-            r"<a href='/teach/control/stream/view/id/(\d*)'>\s*<span class=\"stream-title\">(.*?)</span>", r.text)
-        found_lessons = re.findall(
-            r"<div class=\"link title\" href=\"/teach/control/lesson/view/id/(\d+)\">(.*?)</div>", r.text)
-        processed_streams = set()
-        for s in found_streams:
-            if not s[0] in processed_streams:
-                lessons += self.Lessons(s[0])
-                processed_streams.add(s[0])
-        for l in found_lessons:
-            if not l in lessons:
-                lessons.append(l)
-        return lessons
+        url = f'{self._url}/teach/control/stream/view/id/{stream}'
+        r = self._session.get(url)
+        html = BeautifulSoup(r.text, 'html5lib')
+
+        lessons = html.find('ul', {'class': 'lesson-list'}).find_all(
+            lambda tag: tag.name == 'li' and tag.get('data-lesson-id'), recursive=False)
+        return [a['data-lesson-id'] for a in lessons]
 
     def Lesson(self, lesson):
         """
@@ -179,34 +169,37 @@ class GetCourse:
         * Списка URL с embed'ами
         """
         url = f'{self._url}/pl/teach/control/lesson/view?id={lesson}'
-        r = self._session.get(url, cookies=self._cookies)
-        try:
-            title = re.search(r"<h1>(.*)</h1>", r.text).group(1)
-        except:
-            title = None
-        embeds = re.findall(
-            r"<iframe .*? src=['\"](.*?)['\"].*?></iframe>", r.text)
-        return title, embeds
+        r = self._session.get(url)
+        html = BeautifulSoup(r.text, 'html5lib')
+
+        return html.h2.text, [a['src'] for a in html.find_all('iframe')]
 
     def userProduct(self, userProduct):
         """
         Метод возвращает информацию о покупке
         * userProduct - ID покупки
-        Возвращается кортеж из:
-        * Названия покупки
-        * Состояния (Активен, Завершен, Не активен, )
+        Возвращается объект:
+        * title - Название покупки
+        * status - Состояние покупки (Активен, Завершен, Не активен, )
+        * prolong - состояние автопродления (True/False)
+        * number - номер покупки
+        * client - ID клиента
+        * product - ID продукта
+        * orders - список ID заказов
         """
         url = f'{self._url}/sales/control/userProduct/update/id/{userProduct}'
-        r = self._session.get(url, cookies=self._cookies)
-        try:
-            title = re.search(r"<h1>(.*)</h1>", r.text).group(1)
-        except:
-            title = None
-        status = re.search(
-            r"<tr>\s*<td class=\"key\">\s*Статус\s*</td>\s*<td>\s*<span[^>]+>\s*(Активен)\s*</span>\s*</td>\s*</tr>", r.text).group(1)
-        prolong = re.search(
-            r'<label\s*>\s*<input [^>]*type=\"checkbox\" name=\"auto_prolongate_enabled\"\s*(checked)?>\s*Продлевать автоматически\s*</label>', r.text).group(1) == "checked"
-        return {"title": title, "status": status, "prolong": prolong}
+        r = self._session.get(url)
+        html = BeautifulSoup(r.text, 'html5lib')
+        return {
+            "title": html.h1.text,
+            "status": 
+html.find(lambda tag: tag.name=="td" and tag.text.strip()=="Статус").next_sibling.next_sibling.text.strip(),
+            "prolong": html.find('input',{'name':'auto_prolongate_enabled'}).get('checked') is not None,
+            "number": int(html.find(lambda tag: tag.name=="td" and tag.text.strip()=="Номер покупки").next_sibling.next_sibling.text.strip()),
+            "client":int(html.find(lambda tag: tag.name=="td" and tag.text.strip()=="Отображаемое имя").next_sibling.next_sibling.a["data-user-id"]),
+            "product":int(html.find(lambda tag: tag.name=="td" and tag.text.strip()=="Продукт").next_sibling.next_sibling.a["href"].split("=")[1]),
+            "orders":[int(a["href"].split('/')[-1]) for a in html.find(lambda tag: tag.name=="div" and tag.text.strip()=="Связанные заказы").next_sibling.next_sibling.find_all("a")]
+        }
 
     def missionTask(self, taskId):
         """
@@ -242,7 +235,7 @@ class GetCourse:
             # бывают также "только что", "2 минуты назад", "сегодня ХХ:ХХ" и бог весть что еще
             """
             stepdata = tds[3].text.strip().split('\n')
-            result_element=tds[4].find('span', class_="text-muted")
+            result_element = tds[4].find('span', class_="text-muted")
             result.append({
                 "stepId": int(step['data-id']),
                 "order": int(tds[0].text),  # №
@@ -255,7 +248,8 @@ class GetCourse:
                 # Название/ID
                 "stepTemplateId": int(stepdata[1].strip()[6:-1]),
                 "resultSummary": tds[4].span.text.strip(),  # Результат/Итог
-                "resultData": " ".join(result_element.text.split()) if result_element else None,  # Результат/Вывод
+                # Результат/Вывод
+                "resultData": " ".join(result_element.text.split()) if result_element else None,
                 "who": tds[5].text.strip(),  # Кто
                 "subprocess": tds[6].text.strip(),  # Подпроцесс
             })
