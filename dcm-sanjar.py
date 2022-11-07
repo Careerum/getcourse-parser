@@ -3,7 +3,7 @@ import datetime
 
 gc = GetCourse()
 
-ConsultingVideos = [
+videos1 = [
     ['66844116', '169425744', '169425746', '169425749', '169425752',
         '146470753', '169427055', '169427056', '169427057', '169427058'],
     ['68381428', '169426032', '169426066', '169426067', '169426068',
@@ -13,7 +13,7 @@ ConsultingVideos = [
     ['71822973', '169426804', '169426816',
         '146470760', '169427084', '169427085'],
 ]
-DreamTeamVideos = [
+videos2 = [
     ['146546429', '107503606', '172340101', '172340103', '172340105',
         '172340107', '172346813', '172346814', '172346815', '172346816'],
     ['146546440', '110983412', '172340570', '172340575', '172340577',
@@ -61,7 +61,7 @@ endDate = (datetime.datetime(2022, month, 1) + relativedelta(months=+
 print(f"{startDate} - {endDate}")
 users1_total = 0
 users1_total_str=[]
-for video in ConsultingVideos:
+for video in videos1:
     i+=1
     Users = gc.Users(gc_filter_new(video, startDate, endDate))
     print(f"{i} видео - {len(Users)}")
@@ -73,7 +73,7 @@ print("")
 users2_total = 0
 users2_total_str = []
 i=0
-for video in DreamTeamVideos:
+for video in videos2:
     i+=1
     Users = gc.Users(gc_filter_new(video, startDate, endDate))
     print(f"{i} видео - {len(Users)}")
