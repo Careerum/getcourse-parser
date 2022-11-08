@@ -27,8 +27,8 @@ API:
     Пример вывода:
     ```python
     [
-      {'id': '2216872626', 'client': ('64348545', 'Наталия Маньковская'), 'subject': ('user', '64348545'), 'status': 'Отложена'},
-      {'id': '2217509003', 'client': ('45953922', 'Мария Хабахпашева'), 'subject': ('user', '45953922'), 'status': 'Отложена'}
+      {'id': '221687262', 'client': ('64348545', 'Иван Петров'), 'subject': ('user', '6434845'), 'status': 'Отложена'},
+      {'id': '221750903', 'client': ('45953922', 'Сидор Кузнецов'), 'subject': ('user', '4593922'), 'status': 'Отложена'}
     ]
     ```
   - Метод `missionTask` возвращает информацию о шагах, выполненых в рамках конкретной задачи
@@ -81,7 +81,7 @@ API:
     ```
     Пример вывода:
     ```python
-    ('Урок 1. Ваш запрос на курс', ['https://video.dreamcatchme.ru/cRkmQf4A'])
+    ('Урок 1. Ваш запрос на курс', ['https://www.youtube.com/watch?v=WiR-5swzlvE'])
     ```      
 - Работа с покупками
   - Метод `userProduct` возвращает информацию о покупке
@@ -100,7 +100,7 @@ API:
     Пример вывода:
     ```python
     {
-      'client': 232034086,
+      'client': 23203086,
       'number': 20444,
       'orders': [200203221, 191334515, 182847122],
       'product': 1581756,
@@ -111,7 +111,7 @@ API:
     ```      
 - Работа с пользователями
   - Метод `Users` возвращает список ID пользователей по указанному фильтру
-        * `filter` - словарь в формате uc\[rule_string\] запроса `https://school.dreamcatchme.ru/pl/user/user/index?uc[rule_string]={...}`
+        * `filter` - словарь в формате uc\[rule_string\] запроса `https://school.careerum.ru/pl/user/user/index?uc[rule_string]={...}`
     ```python
     gc.Users(
       filter={
